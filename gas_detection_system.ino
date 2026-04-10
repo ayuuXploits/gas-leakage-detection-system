@@ -1,0 +1,69 @@
+// Define the GPIO pins for the components
+const int gasSensorPin = 34; // MQ-2 analog output (A0)
+const int buzzerPin = 2;     // Active buzzer connected to GPIO 2
+
+// Variables for sensor reading and calibration
+int gasValue = 0;
+int baselineReadings[20]; // Array to store 20 readings for averaging
+int sensorBaseline = 0;   // The calculated average baseline
+const int gasThresholdOffset = 150; // Set the alarm threshold 150 points above baseline
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("ESP32 Gas Sensing System Initializing...");
+
+  pinMode(buzzerPin, OUTPUT);
+  digitalWrite(buzzerPin, LOW); // Ensure buzzer is off initially
+
+  Serial.println("Calibrating sensor in fresh air... Do not expose to gas.");
+  Serial.println("Please wait 10 seconds...");
+
+  // Perform initial calibration
+  calibrateSensor();
+
+  Serial.print("Calibration complete. Sensor baseline set at: ");
+  Serial.print(sensorBaseline);
+  Serial.print(". Threshold set at: ");
+  Serial.println(sensorBaseline + gasThresholdOffset);
+  Serial.println("System ready. Monitoring gas levels...");
+}
+
+void loop() {
+  // Read the analog value from the MQ-2 sensor input pin (A0)
+  gasValue = analogRead(gasSensorPin);
+
+  // Print the sensor data to the serial monitor for debugging
+  Serial.print("Raw Gas Sensor Value: ");
+  Serial.println(gasValue);
+
+  // Check if the gas concentration exceeds the dynamically set threshold
+  if (gasValue > (sensorBaseline + gasThresholdOffset)) {
+    // If threshold is exceeded, sound the buzzer
+    Serial.println("!!! ☢️Gas Detected: ALARM !!!");
+    digitalWrite(buzzerPin, HIGH); // Turn the buzzer on
+  } else {
+    // Otherwise, keep the buzzer off
+    digitalWrite(buzzerPin, LOW); // Turn the buzzer off
+  }
+
+  // Add a delay before the next reading
+  delay(1000); // Wait for 1 second
+}
+
+// Function to automatically calibrate the sensor baseline
+void calibrateSensor() {
+  // Allow the sensor to warm up initially
+  delay(5000); 
+  
+  long sum = 0;
+  for (int i = 0; i < 20; i++) {
+    baselineReadings[i] = analogRead(gasSensorPin);
+    sum += baselineReadings[i];
+    delay(500); // Wait between readings
+    Serial.print(".");
+  }
+  
+  // Calculate the average baseline
+  sensorBaseline = sum / 20;
+  Serial.println();
+}
