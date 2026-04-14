@@ -2,7 +2,7 @@
 const int gasSensorPin = 34; // MQ-2 analog output (A0)
 const int buzzerPin = 2;     // Active buzzer connected to GPIO 2
 
-// Variables for sensor reading and calibration
+
 int gasValue = 0;
 int baselineReadings[20]; // Array to store 20 readings for averaging
 int sensorBaseline = 0;   // The calculated average baseline
