@@ -14,4 +14,4 @@ required components
 mq-2 sensor
 esp-32 
 jumper wires
-buzzer..
+buzzer...
