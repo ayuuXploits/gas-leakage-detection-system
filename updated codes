@@ -1,1 +1,119 @@
-.
+// ─── Pin & threshold configuration ───────────────────────────────────────────
+const int GAS_SENSOR_PIN      = 34;   // MQ-2 analog output (A0)
+const int BUZZER_PIN           = 2;    // Active buzzer
+
+const int CALIBRATION_SAMPLES  = 30;   // Readings averaged for baseline
+const int CALIBRATION_INTERVAL = 500;  // ms between calibration samples
+const int WARMUP_DELAY_MS      = 20000;// 20 s warm-up (MQ sensors need it)
+
+const int THRESHOLD_OFFSET     = 150;  // ADC counts above baseline = alarm
+const int HYSTERESIS_BAND      = 30;   // Must drop this far below threshold to reset
+const int CONFIRM_READINGS     = 3;    // Consecutive over-threshold reads to trigger
+
+const int ROLLING_WINDOW       = 5;    // Smoothing window for live readings
+const int SAMPLE_INTERVAL_MS   = 200;  // Non-blocking sample period
+
+// ─── State ────────────────────────────────────────────────────────────────────
+int           sensorBaseline    = 0;
+int           rollingBuf[ROLLING_WINDOW];
+int           rollingIdx        = 0;
+bool          alarmActive       = false;
+int           overThresholdCount= 0;
+unsigned long lastSampleMs      = 0;
+
+// ─── setup ────────────────────────────────────────────────────────────────────
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // Seed rolling buffer so the first few reads aren't garbage
+  int seed = analogRead(GAS_SENSOR_PIN);
+  for (int i = 0; i < ROLLING_WINDOW; i++) rollingBuf[i] = seed;
+
+  calibrateSensor();
+  Serial.println("System ready. Send 'R' over Serial to recalibrate.");
+}
+
+// ─── loop ─────────────────────────────────────────────────────────────────────
+void loop() {
+  // Non-blocking serial command handler
+  if (Serial.available()) {
+    char cmd = (char) Serial.read();
+    if (cmd == 'R' || cmd == 'r') calibrateSensor();
+  }
+
+  unsigned long now = millis();
+  if (now - lastSampleMs < SAMPLE_INTERVAL_MS) return; // non-blocking
+  lastSampleMs = now;
+
+  int smoothed = rollingAverage(analogRead(GAS_SENSOR_PIN));
+  int threshold = sensorBaseline + THRESHOLD_OFFSET;
+
+  Serial.print("Gas (smoothed): "); Serial.print(smoothed);
+  Serial.print("  baseline: ");    Serial.print(sensorBaseline);
+  Serial.print("  threshold: ");   Serial.println(threshold);
+
+  updateAlarm(smoothed, threshold);
+}
+
+// ─── Alarm logic (hysteresis + debounce) ─────────────────────────────────────
+void updateAlarm(int value, int threshold) {
+  if (!alarmActive) {
+    if (value > threshold) {
+      overThresholdCount++;
+      if (overThresholdCount >= CONFIRM_READINGS) {
+        alarmActive = true;
+        digitalWrite(BUZZER_PIN, HIGH);
+        Serial.println("!!! GAS DETECTED: ALARM !!!");
+      }
+    } else {
+      overThresholdCount = 0; // reset debounce on clean read
+    }
+  } else {
+    // Hysteresis: only clear when well below threshold
+    if (value < threshold - HYSTERESIS_BAND) {
+      alarmActive = false;
+      overThresholdCount = 0;
+      digitalWrite(BUZZER_PIN, LOW);
+      Serial.println("Gas level normal. Alarm cleared.");
+    }
+  }
+}
+
+// ─── Rolling average (circular buffer) ───────────────────────────────────────
+int rollingAverage(int newReading) {
+  rollingBuf[rollingIdx] = newReading;
+  rollingIdx = (rollingIdx + 1) % ROLLING_WINDOW;
+  long sum = 0;
+  for (int i = 0; i < ROLLING_WINDOW; i++) sum += rollingBuf[i];
+  return sum / ROLLING_WINDOW;
+}
+
+// ─── Calibration ─────────────────────────────────────────────────────────────
+void calibrateSensor() {
+  digitalWrite(BUZZER_PIN, LOW);
+  alarmActive = false;
+  overThresholdCount = 0;
+
+  Serial.println("Calibrating... ensure fresh air. Warming up sensor.");
+  delay(WARMUP_DELAY_MS);
+
+  long sum = 0;
+  for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
+    sum += analogRead(GAS_SENSOR_PIN);
+    delay(CALIBRATION_INTERVAL);
+    Serial.print(".");
+  }
+  Serial.println();
+
+  sensorBaseline = sum / CALIBRATION_SAMPLES;
+
+  // Sanity check: baseline under 100 likely means no sensor / bad connection
+  if (sensorBaseline < 100) {
+    Serial.println("WARNING: baseline is suspiciously low. Check wiring!");
+  }
+
+  Serial.print("Baseline: ");   Serial.print(sensorBaseline);
+  Serial.print("  Alarm at: "); Serial.println(sensorBaseline + THRESHOLD_OFFSET);
+}
