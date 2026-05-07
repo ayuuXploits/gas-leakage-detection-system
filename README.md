@@ -36,10 +36,11 @@ Open your terminal and run the following commands to get the project locally:
 
 ```bash
 # Clone the repository
-git clone [https://github.com/your-username/gas-detection-system.git](https://github.com/your-username/gas-detection-system.git)
+git clone [https://github.com/ayuuXploits/gas-detection-system.git](https://github.com/ayuuXploits/gas-detection-system.git)
 
 # Navigate into the project directory
 cd gas-detection-system
+```
 ---
 
 ## ⚙️ Configuration Constants
