@@ -35,6 +35,7 @@ A robust, production-ready firmware for the MQ-2 gas sensor designed for the **E
 Open your terminal and run the following commands to get the project locally:
 
 ```bash
+
 # Clone the repository
 git clone [https://github.com/ayuuXploits/gas-detection-system.git](https://github.com/ayuuXploits/gas-detection-system.git)
 
