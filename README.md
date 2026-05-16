@@ -41,6 +41,7 @@ git clone [https://github.com/ayuuXploits/gas-detection-system.git](https://gith
 
 # Navigate into the project directory
 cd gas-detection-system
+
 ```
 ---
 
